@@ -1,0 +1,198 @@
+---
+title: "Portafolio de Acciones"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    social: menu
+    theme: paper
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(ggplot2)
+library(plotly)
+library(readr)
+library(quantmod)
+library(dplyr)
+library(psych)
+
+SPlista <- read_csv("https://raw.githubusercontent.com/Andres1984/Data-Analysis-with-R/master/Bases/SPlista.txt")
+```
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+
+Escoja la fecha y las acciones que desea ver:
+
+```{r}
+dateInput('Desde',
+      label = 'Date input: yyyy-mm-dd',
+      value = Sys.Date()
+    )
+
+dateInput('Hasta',
+      label = 'Date input: yyyy-mm-dd',
+      value = Sys.Date()
+    )
+
+actionButton("submit", label = "Submit") 
+  
+selectInput("Grafica", "Gráfica",
+            choices = SPlista$Symbol) 
+
+selectInput("Primera", "Acción 1",
+            choices = SPlista$Symbol) 
+selectInput("Segunda", "Acción 2",
+            choices = SPlista$Symbol) 
+selectInput("Tercera", "Acción 3",
+            choices = SPlista$Symbol)
+selectInput("Cuarta", "Acción 4",
+            choices = SPlista$Symbol)
+
+numericInput("Peso1", "Accion1:", 0.25, min = 0, max = 1)
+numericInput("Peso2", "Accion2:", 0.25, min = 0, max = 1)
+numericInput("Peso3", "Accion3:", 0.25, min = 0, max = 1)
+numericInput("Peso4", "Accion4:", 0.25, min = 0, max = 1)
+
+Grafica<- eventReactive(input$submit,{ 
+  req(input$Primera)
+  getSymbols(input$Grafica,src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)}) 
+
+Accion1<- eventReactive(input$submit,{ 
+  req(input$Primera)
+  getSymbols(input$Primera,src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)})   
+
+b<- eventReactive(input$submit,{ 
+  req(input$Segunda)
+  getSymbols(input$Segunda,src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)})   
+
+Accion3<- eventReactive(input$submit,{ 
+  req(input$Tercera)
+  getSymbols(input$Tercera,src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)})   
+
+d<- eventReactive(input$submit,{ 
+  req(input$Cuarta)
+  getSymbols(input$Cuarta,src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)})   
+VIX<- eventReactive(input$submit,{ 
+  req(input$Cuarta)
+  getSymbols("^VIX",src="yahoo",from=as.Date(input$Desde),to=as.Date(input$Hasta),auto.assign =
+               FALSE)})   
+pesos<-eventReactive(input$submit,{pesos=as.data.frame(cbind(as.numeric(input$Peso1),as.numeric(input$Peso2),as.numeric(input$Peso3),as.numeric(input$Peso4)))})
+
+o<-reactive({p=data.frame(date=index(Accion1()))})
+precios<-eventReactive(input$submit,{precios=as.data.frame(cbind(Accion1()[,4],b()[,4],Accion3()[,4],d()[,4]))})
+
+rend<-eventReactive(input$submit,{rend=as.data.frame(cbind(Accion1=Delt(precios()[,1])[-1],Accion2=Delt(precios()[,2])[-1],Accion3=Delt(precios()[,3])[-1],Accion4=Delt(precios()[,4])[-1]))})
+
+
+med=eventReactive(input$submit,{med=colMeans(rend())})
+var=eventReactive(input$submit,{var=cov(rend())})
+
+rport<-eventReactive(input$submit,{rport=as.data.frame(sum(med()*pesos()))})
+
+
+sigport<-eventReactive(input$submit,{sigport=as.data.frame(sqrt(as.matrix(pesos())%*%var()%*%t(pesos())))})
+
+media<-eventReactive(input$submit,{media=as.data.frame(cbind(rport()*250,t(med()*250)))})
+volatilidad<-eventReactive(input$submit,{volatilidad=as.data.frame(cbind(sigport()*sqrt(250),t(sqrt(diag(var()*250)))))})
+
+resultados<-eventReactive(input$submit,{resultados=as.data.frame(cbind(t(media()),t(volatilidad())))})
+
+ bv <- reactive(nrow(resultados()))
+ d_frame2 <- reactive({
+   testdata <- resultados()
+   rownames(testdata) <- rbind("Portafolio", "Acción 1", "Acción 2", "Acción 3", "Acción 4")
+   testdata
+ })
+
+ subset_dataset <- eventReactive(input$submit, {
+   dv<<- bv()
+ })
+
+xlim<-eventReactive(input$submit,{xlim=as.data.frame(cbind(0.05,0.2))})
+ylim<-eventReactive(input$submit,{ylim=as.data.frame(cbind(0.05,0.3))})
+c <- reactive({NULL})
+df<- reactive({
+    df <- data.frame(v1=base::c("Portafolio", "Acción 1", "Acción 2", "Acción 3", "Acción 4"),d_frame2())
+    row.names(df) <- df[,1]           # THIS WORKs
+    df
+  })
+
+df1 <- reactive({                    # THIS ALSO WORKs
+    data <- df()
+    row.names(data) <- df()[,1]
+    colnames(data)<-base::c("Activo","Rendimiento", "Volatilidad")
+    data
+  })
+
+  
+
+
+```
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Precio de la Acción
+
+```{r}
+
+renderPlot({
+
+
+  chartSeries(Grafica(), theme = chartTheme("white"),
+              type = "line")
+})
+
+```
+
+### Índice de Volatilidad
+
+```{r}
+
+renderPlot({
+
+
+  chartSeries(VIX(), theme = chartTheme("white"),
+              type = "line")
+})
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Rendimientos  y Volatilidad 
+
+```{r}
+
+renderTable({
+     df1()
+  })
+
+
+```
+
+### Portafolio
+
+```{r}
+
+
+renderPlot({
+plot(d_frame2()[,2] ,d_frame2()[,1], pch=16, cex=2,xlab=expression(sigma[p]), ylab=expression(mu[p]),col=rainbow(5),ylim=base::c(min(d_frame2()[,1])-0.10,max(d_frame2()[,1])+0.15),xlim=base::c(min(d_frame2()[,2])-0.05,max(d_frame2()[,2])+0.12), main="Portafolio")
+text(d_frame2()[,2],d_frame2()[,1], labels=base::c("Portafolio","Accion1","Accion2","Accion3","Accion4"), pos=4)
+
+})
+
+
+
+```
+
