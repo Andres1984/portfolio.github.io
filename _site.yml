@@ -1,0 +1,10 @@
+name: "my-website"
+navbar:
+  title: "My Website"
+  left:
+    - text: "DataSience"
+      href: induccion.slides.html
+    - text: "Pronostico"
+      href: presentacion.html
+    - text: "Instagram"
+      href: instagram.html  
